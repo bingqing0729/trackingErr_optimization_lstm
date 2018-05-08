@@ -8,15 +8,19 @@ Created on Mon May  7 16:38:45 2018
 import tensorflow as tf
 from tensorflow.contrib import rnn
 import pickle
+import random
 
 # import stock data
 pkl_file = open('clean_data.pkl','rb')
 stock = pickle.load(pkl_file)
+stock_train = [i[0:800] for i in stock]
+stock_test = [i[800:1000] for i in stock]
+del(stock)
 
 # Training Parameters
 learning_rate = 0.001
 training_steps = 10000
-batch_size = 100
+batch_size = 50
 display_step = 200
 
 # Network Parameters
@@ -27,9 +31,8 @@ num_hidden = 128 # hidden layer num of features
 
 # tf Graph input
 X = tf.placeholder("float", [None, timesteps, num_input])
-Y = tf.placeholder("float", [None, future_time, num_input])
-Z = tf.placeholder("float", [None,future_time])
-W = tf.placeholder("float", [None,num_input])
+future_return = tf.placeholder("float", [None, future_time, num_input])
+index_return = tf.placeholder("float", [None, future_time])
 
 # Define weights
 weights = {
@@ -58,10 +61,12 @@ def RNN(x, weights, biases):
     # Linear activation, using rnn inner loop last output
     return tf.matmul(outputs[-1], weights['out']) + biases['out']
 
-out = RNN(X, weights, biases)
-prediction = tf.matmul(Y,out)
+output = RNN(X, weights, biases)
+prediction = tf.nn.relu(output)
+prediction = prediction/tf.reduce_sum(prediction,1)
 
 # Define loss and optimizer
+
 loss_op = tf.reduce_mean((prediction-Z)**2)
 optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
 train_op = optimizer.minimize(loss_op)
@@ -76,7 +81,7 @@ with tf.Session() as sess:
     sess.run(init)
 
     for step in range(1, training_steps+1):
-        batch_x, batch_y, batch_z = stock_data.train.next_batch(batch_size)
+        batch_x, batch_y, batch_z = [i[random.sample(range(0,len(stock_train[2])),batch_size)] for i in stock_train]
         # Run optimization op (backprop)
         sess.run(train_op, feed_dict={X: batch_x, Y: batch_y, Z: batch_z})
         if step % display_step == 0 or step == 1:
@@ -90,9 +95,8 @@ with tf.Session() as sess:
     print("Optimization Finished!")
 
     # Calculate accuracy for test set
-    test_len = 128
-    test_x, test_y, test_z = stock_data.test
+    test_len = 200
+    test_x, test_y, test_z = stock_test
 
     print("Testing tracking error:", \
         sess.run(loss_op, feed_dict={X: test_x, Y: test_y, Z: test_z}))
-    
