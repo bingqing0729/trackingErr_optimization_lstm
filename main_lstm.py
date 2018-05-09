@@ -27,7 +27,7 @@ display_step = 200
 num_input = 100
 timesteps = 100 # timesteps
 future_time = 5
-num_hidden = 128 # hidden layer num of features
+num_hidden = 64 # hidden layer num of features
 
 # tf Graph input
 X = tf.placeholder("float", [None, timesteps, num_input])
@@ -53,10 +53,10 @@ def RNN(x, weights, biases):
     x = tf.unstack(x, timesteps, 1)
 
     # Define a lstm cell with tensorflow
-    lstm_cell = rnn.BasicLSTMCell(num_hidden, forget_bias=1.0)
+    lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(num_hidden, forget_bias=1.0)
 
     # Get lstm cell output
-    outputs, states = rnn.static_rnn(lstm_cell, x, dtype=tf.float32)
+    outputs, states = tf.nn.static_rnn(lstm_cell, x, dtype=tf.float32)
 
     # Linear activation, using rnn inner loop last output
     return [tf.matmul(outputs[-1], weights['out']) + biases['out'],outputs]

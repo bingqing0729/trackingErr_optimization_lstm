@@ -24,16 +24,19 @@ day_after = 5
 x = np.zeros([n,day,stock])
 y = np.zeros([n,day_after,stock])
 z = np.zeros([n,day_after])
-samples = np.random.randint(0,len(list(access.index[0:-day-day_after])),n)
-for i in range(0,n):
+i = 0
+while i < n:
     print(i)
-    current_comp_index = len(comp[0][comp[0]<access.index[samples[i]]])-1
-    x[i] = access.loc[access.index[samples[i]]:access.index[samples[i]+day-1],random.sample(comp[1][current_comp_index],stock)]
-    y[i] = access.loc[access.index[samples[i]+day]:access.index[samples[i]+day+day_after-1],random.sample(comp[1][current_comp_index],stock)]
-    z[i] = zz500_return.loc[access.index[samples[i]+day]:access.index[samples[i]+day+day_after-1]]
-
+    samples = np.random.randint(0,len(list(access.index[0:-day-day_after])),1)
+    current_comp_index = len(comp[0][comp[0]<access.index[samples][0]])-1
+    x[i] = access.loc[access.index[samples][0]:access.index[samples+day-1][0],random.sample(comp[1][current_comp_index],stock)]
+    y[i] = access.loc[access.index[samples+day][0]:access.index[samples+day+day_after-1][0],random.sample(comp[1][current_comp_index],stock)]
+    z[i] = zz500_return.loc[access.index[samples+day][0]:access.index[samples+day+day_after-1][0]]
+    if sum(sum(np.isnan(x[i])))>0 or sum(sum(np.isnan(y[i])))>0:
+        i = i-1
+    i = i+1
 clean_data = [x,y,z]
 
-output = open('clean_data.pkl', 'wb')
-pickle.dump(clean_data, output, -1)
-output.close()
+#output = open('clean_data.pkl', 'wb')
+#pickle.dump(clean_data, output, -1)
+#output.close()
