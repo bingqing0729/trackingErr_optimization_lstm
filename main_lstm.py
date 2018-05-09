@@ -4,7 +4,7 @@ Created on Mon May  7 16:38:45 2018
 
 @author: hubingqing
 """
-
+from __future__ import print_function
 import tensorflow as tf
 from tensorflow.contrib import rnn
 import pickle
@@ -59,15 +59,14 @@ def RNN(x, weights, biases):
     outputs, states = rnn.static_rnn(lstm_cell, x, dtype=tf.float32)
 
     # Linear activation, using rnn inner loop last output
-    return tf.matmul(outputs[-1], weights['out']) + biases['out']
+    return [tf.matmul(outputs[-1], weights['out']) + biases['out'],outputs]
 
-output = RNN(X, weights, biases)
+output, lstm_out = RNN(X, weights, biases)
 prediction = tf.nn.relu(output)
-prediction = tf.divide(prediction,tf.reduce_sum(prediction,1))
-
+prediction = tf.expand_dims(tf.divide(prediction,tf.expand_dims(tf.reduce_sum(prediction,1),1)),1)
+prediction_final = tf.reduce_sum(tf.multiply(future_return,prediction),2)
 # Define loss and optimizer
-tf.multiply(future_return,prediction)
-loss_op = tf.reduce_mean((prediction-Z)**2)
+loss_op = tf.nn.l2_loss(tf.subtract(prediction_final,index_return))
 optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
 train_op = optimizer.minimize(loss_op)
 
@@ -86,11 +85,10 @@ with tf.Session() as sess:
         sess.run(train_op, feed_dict={X: batch_x, future_return: batch_y, index_return: batch_z})
         if step % display_step == 0 or step == 1:
             # Calculate batch loss and accuracy
-            loss = sess.run([loss_op], feed_dict={X: batch_x,
+            loss, pf, op, out= sess.run([loss_op, prediction_final,output,lstm_out], feed_dict={X: batch_x,
                                                   future_return: batch_y,
                                                   index_return: batch_z})
-            print("Step " + str(step) + ", Minibatch Loss= " + \
-                  "{:.4f}".format(loss))
+            print("Step " + str(step) + ", Minibatch Loss= " + format(loss))
 
     print("Optimization Finished!")
 

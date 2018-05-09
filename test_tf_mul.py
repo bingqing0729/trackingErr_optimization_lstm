@@ -12,4 +12,4 @@ with tf.Session() as sess:
     test1 = tf.multiply(q,w)
     test2 = tf.reduce_sum(test1,1)
     test3 = tf.divide(test1,test2)
-    test4 
+    test4 = tf.sum(test1,test3)
