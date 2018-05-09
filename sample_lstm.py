@@ -63,10 +63,10 @@ def RNN(x, weights, biases):
 
 output = RNN(X, weights, biases)
 prediction = tf.nn.relu(output)
-prediction = prediction/tf.reduce_sum(prediction,1)
+prediction = tf.divide(prediction,tf.reduce_sum(prediction,1))
 
 # Define loss and optimizer
-
+tf.multiply(future_return,prediction)
 loss_op = tf.reduce_mean((prediction-Z)**2)
 optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
 train_op = optimizer.minimize(loss_op)
@@ -83,12 +83,12 @@ with tf.Session() as sess:
     for step in range(1, training_steps+1):
         batch_x, batch_y, batch_z = [i[random.sample(range(0,len(stock_train[2])),batch_size)] for i in stock_train]
         # Run optimization op (backprop)
-        sess.run(train_op, feed_dict={X: batch_x, Y: batch_y, Z: batch_z})
+        sess.run(train_op, feed_dict={X: batch_x, future_return: batch_y, index_return: batch_z})
         if step % display_step == 0 or step == 1:
             # Calculate batch loss and accuracy
             loss = sess.run([loss_op], feed_dict={X: batch_x,
-                                                  Y: batch_y,
-                                                  Z: batch_z})
+                                                  future_return: batch_y,
+                                                  index_return: batch_z})
             print("Step " + str(step) + ", Minibatch Loss= " + \
                   "{:.4f}".format(loss))
 
@@ -99,4 +99,4 @@ with tf.Session() as sess:
     test_x, test_y, test_z = stock_test
 
     print("Testing tracking error:", \
-        sess.run(loss_op, feed_dict={X: test_x, Y: test_y, Z: test_z}))
+        sess.run(loss_op, feed_dict={X: test_x, future_return: test_y, index_return: test_z}))
