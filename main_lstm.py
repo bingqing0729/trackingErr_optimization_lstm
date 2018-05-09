@@ -66,7 +66,8 @@ prediction = tf.nn.relu(output)
 prediction = tf.expand_dims(tf.divide(prediction,tf.expand_dims(tf.reduce_sum(prediction,1),1)),1)
 prediction_final = tf.reduce_sum(tf.multiply(future_return,prediction),2)
 # Define loss and optimizer
-loss_op = tf.nn.l2_loss(tf.subtract(prediction_final,index_return))
+#loss_op = tf.nn.l2_loss(tf.subtract(prediction_final,index_return))
+loss_op = tf.nn.l2_loss(prediction_final)
 optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
 train_op = optimizer.minimize(loss_op)
 
