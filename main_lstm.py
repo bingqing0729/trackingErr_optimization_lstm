@@ -6,6 +6,7 @@ Created on Mon May  7 16:38:45 2018
 """
 from __future__ import print_function
 import tensorflow as tf
+import numpy as np
 from tensorflow.contrib import rnn
 import pickle
 import random
@@ -19,14 +20,14 @@ del(stock)
 
 # Training Parameters
 learning_rate = 0.001
-training_steps = 10000
+training_steps = 50000
 batch_size = 50
-display_step = 200
+display_step = 100
 
 # Network Parameters
 num_input = 100
 timesteps = 100 # timesteps
-future_time = 5
+future_time = 10
 num_hidden = 64 # hidden layer num of features
 
 # tf Graph input
@@ -53,21 +54,21 @@ def RNN(x, weights, biases):
     x = tf.unstack(x, timesteps, 1)
 
     # Define a lstm cell with tensorflow
-    lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(num_hidden, forget_bias=1.0)
+    lstm_cell = rnn.BasicLSTMCell(num_hidden, forget_bias=1.0)
 
     # Get lstm cell output
-    outputs, states = tf.nn.static_rnn(lstm_cell, x, dtype=tf.float32)
+    outputs, states = rnn.static_rnn(lstm_cell, x, dtype=tf.float32)
 
     # Linear activation, using rnn inner loop last output
-    return [tf.matmul(outputs[-1], weights['out']) + biases['out'],outputs]
+    return tf.matmul(outputs[-1], weights['out']) + biases['out']
 
-output, lstm_out = RNN(X, weights, biases)
+output = RNN(X, weights,biases)
 prediction = tf.nn.relu(output)
 prediction = tf.expand_dims(tf.divide(prediction,tf.expand_dims(tf.reduce_sum(prediction,1),1)),1)
 prediction_final = tf.reduce_sum(tf.multiply(future_return,prediction),2)
 # Define loss and optimizer
-#loss_op = tf.nn.l2_loss(tf.subtract(prediction_final,index_return))
-loss_op = tf.nn.l2_loss(prediction_final)
+#loss_op = tf.nn.l2_loss(tf.subtract(prediction_final,index_return))*2/batch_size
+loss_op = tf.nn.l2_loss(prediction_final)*2/batch_size
 optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
 train_op = optimizer.minimize(loss_op)
 
@@ -81,12 +82,12 @@ with tf.Session() as sess:
     sess.run(init)
 
     for step in range(1, training_steps+1):
-        batch_x, batch_y, batch_z = [i[random.sample(range(0,len(stock_train[2])),batch_size)] for i in stock_train]
-        # Run optimization op (backprop)
-        sess.run(train_op, feed_dict={X: batch_x, future_return: batch_y, index_return: batch_z})
+        batch_x, batch_y, batch_z, batch_yo = [i[random.sample(range(0,len(stock_train[2])),batch_size)] for i in stock_train]
+       # Run optimization op (backprop)
+        sess.run(train_op, feed_dict={X: batch_x, future_return: batch_y, index_return: batch_z})       
         if step % display_step == 0 or step == 1:
             # Calculate batch loss and accuracy
-            loss, pf, op, out= sess.run([loss_op, prediction_final,output,lstm_out], feed_dict={X: batch_x,
+            loss, pf, pred = sess.run([loss_op, prediction_final, prediction], feed_dict={X: batch_x,
                                                   future_return: batch_y,
                                                   index_return: batch_z})
             print("Step " + str(step) + ", Minibatch Loss= " + format(loss))
@@ -95,7 +96,7 @@ with tf.Session() as sess:
 
     # Calculate accuracy for test set
     test_len = 200
-    test_x, test_y, test_z = stock_test
+    test_x, test_y, test_z, test_yo = stock_test
 
     print("Testing tracking error:", \
-        sess.run(loss_op, feed_dict={X: test_x, future_return: test_y, index_return: test_z}))
+        sess.run(loss_op, feed_dict={X: test_x, future_return: test_y, index_return: test_z}))*batch_size/test_len
