@@ -19,7 +19,7 @@ stock_test = [i[800:1000] for i in stock]
 del(stock)
 
 # Training Parameters
-learning_rate = 0.001
+learning_rate = 0.0001
 training_steps = 50000
 batch_size = 50
 display_step = 100
@@ -68,7 +68,7 @@ prediction = tf.expand_dims(tf.divide(prediction,tf.expand_dims(tf.reduce_sum(pr
 prediction_final = tf.reduce_sum(tf.multiply(future_return,prediction),2)
 # Define loss and optimizer
 #loss_op = tf.nn.l2_loss(tf.subtract(prediction_final,index_return))*2/batch_size
-loss_op = tf.nn.l2_loss(prediction_final)*2/batch_size
+loss_op = tf.nn.l2_loss(prediction_final)*2/batch_size/future_time
 optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
 train_op = optimizer.minimize(loss_op)
 
@@ -82,7 +82,7 @@ with tf.Session() as sess:
     sess.run(init)
 
     for step in range(1, training_steps+1):
-        batch_x, batch_y, batch_z, batch_yo = [i[random.sample(range(0,len(stock_train[2])),batch_size)] for i in stock_train]
+        batch_x, batch_y, batch_z = [i[random.sample(range(0,len(stock_train[2])),batch_size)] for i in stock_train]
        # Run optimization op (backprop)
         sess.run(train_op, feed_dict={X: batch_x, future_return: batch_y, index_return: batch_z})       
         if step % display_step == 0 or step == 1:
@@ -96,7 +96,7 @@ with tf.Session() as sess:
 
     # Calculate accuracy for test set
     test_len = 200
-    test_x, test_y, test_z, test_yo = stock_test
+    test_x, test_y, test_z = stock_test
 
     print("Testing tracking error:", \
         sess.run(loss_op, feed_dict={X: test_x, future_return: test_y, index_return: test_z}))*batch_size/test_len
