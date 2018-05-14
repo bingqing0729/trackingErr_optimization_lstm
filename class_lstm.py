@@ -39,8 +39,9 @@ def get_chunk(n,timesteps,num_input,future_time):
 
 class my_lstm():
     
-    def __init__(self, num_input, timesteps, future_time, num_hidden, batch_size,learning_rate,training_steps,display_step):
+    def __init__(self, num_training, num_input, timesteps, future_time, num_hidden, batch_size,learning_rate,training_steps,display_step):
         
+        self.num_training = num_training
         self.num_input = num_input
         self.timesteps = timesteps
         self.future_time = future_time
@@ -63,9 +64,10 @@ class my_lstm():
     def define_graph(self):
         
         with self.graph.as_default():
-            self.tf_train_samples = tf.placeholder("float", [self.batch_size, self.timesteps, self.num_input])
-            self.tf_train_future_return = tf.placeholder("float", [self.batch_size, self.future_time, self.num_input])
-            self.tf_test_samples = tf.placeholder("float", [None, self.timesteps, self.num_input])
+            self.tf_train_samples = tf.placeholder("float", [None, self.timesteps, self.num_input])
+            self.tf_train_future_return = tf.placeholder("float", [None, self.future_time, self.num_input])
+            #self.tf_test_samples = tf.placeholder("float", [200, self.timesteps, self.num_input])
+            #self.tf_test_future_return = tf.placeholder("float", [200, self.future_time, self.num_input])
 
             weights = {
                 'out': tf.Variable(tf.random_normal([self.num_hidden, self.num_input]))
@@ -108,26 +110,25 @@ class my_lstm():
 
             # training
             print('Start Training')
+            training_x, training_y = get_chunk(self.num_training,self.timesteps,self.num_input,self.future_time)
+            
             for step in range(1, self.training_steps+1):
-                batch_x, batch_y = get_chunk(self.batch_size,self.timesteps,self.num_input,self.future_time)
+                m = self.num_training // self.batch_size
+                n = step%m
+                batch_x, batch_y = training_x[n*self.batch_size:(n+1)*self.batch_size], training_y[n*self.batch_size:(n+1)*self.batch_size]
                 # Run optimization op (backprop)
                 _, l, w, pf = sess.run([self.optimizer,self.loss,self.prediction,self.prediction_final], 
                                         feed_dict={self.tf_train_samples: batch_x, self.tf_train_future_return: batch_y})       
                 if step % self.display_step == 0 or step == 1:
-                    print("Step " + str(step) + ", Minibatch Loss= " + format(l))
+                    print("Step " + str(step) + ", Loss= " + format(l))
 
             print("Optimization Finished!")
 
-            # test
-            #test_len = len(test[0])
-            #test_x, test_y, _ = test
-
-            #print("Testing tracking error:", \
-                #sess.run(self.loss_test, feed_dict={self.tf_test_samples: test_x, self.tf_test_future_return: test_y})*self.batch_size/test_len)
-
+            test_x, test_y = get_chunk(200,self.timesteps,self.num_input,self.future_time)
+            print("Testing tracking error:", sess.run(self.loss, feed_dict={self.tf_train_samples: test_x, self.tf_train_future_return: test_y})*self.batch_size/200)
 
 if __name__ == '__main__':
-    net = my_lstm(num_hidden = 16, num_input = 100, timesteps = 50, \
-    future_time = 10, batch_size = 100, learning_rate = 0.0001, training_steps = 10000, display_step = 100)
+    net = my_lstm(num_training = 1000, num_hidden = 16, num_input = 100, timesteps = 100, \
+    future_time = 10, batch_size = 100, learning_rate = 1, training_steps = 200000, display_step = 11)
     net.define_graph()
     net.run()
