@@ -19,7 +19,7 @@ stock_test = [i[800:1000] for i in stock]
 del(stock)
 
 # Training Parameters
-learning_rate = 0.0001
+learning_rate = 0.00001
 training_steps = 50000
 batch_size = 50
 display_step = 100
