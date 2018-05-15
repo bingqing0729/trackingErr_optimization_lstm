@@ -129,6 +129,6 @@ class my_lstm():
 
 if __name__ == '__main__':
     net = my_lstm(num_training = 1000, num_hidden = 16, num_input = 100, timesteps = 100, \
-    future_time = 10, batch_size = 100, learning_rate = 1, training_steps = 200000, display_step = 11)
+    future_time = 10, batch_size = 100, learning_rate = 10, training_steps = 500000, display_step = 10)
     net.define_graph()
     net.run()
