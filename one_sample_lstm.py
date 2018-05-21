@@ -12,7 +12,7 @@ import pickle
 import random
 import numpy as np
 import matplotlib.pyplot as plt
-
+import math
 
 
 # import stock data
@@ -125,15 +125,17 @@ class one_sample_lstm():
             self.l = l[-1]
             self.fl = fl[-1]
             self.w = w[-1]
+            self.fl_1000 = fl[1000]
             plt.figure()
             plt.plot(l, 'r', label='training loss')  
             plt.plot(fl, label='future loss')
             plt.savefig("loss.jpg") 
 
 if __name__ == '__main__':
-    num_exp = 100
+    num_exp = 500
     l = np.zeros(num_exp)
     fl = np.zeros(num_exp)
+    fl_1000 = np.zeros(num_exp)
     w = np.zeros([num_exp,100])
     net = one_sample_lstm(num_hidden = 8, num_input = 100, timesteps = 100, \
     future_time = 10, learning_rate = 100, training_steps = 10000, display_step = 100)
@@ -141,8 +143,9 @@ if __name__ == '__main__':
     for i in range(0,num_exp):
         print(i)
         net.run()
-        l[i] = net.l
-        fl[i] = net.fl
+        l[i] = math.sqrt(net.l*250)
+        fl[i] = math.sqrt(net.fl*250)
+        fl_1000[i] = math.sqrt(net.fl_1000*250)
         w[i] = net.w
         print(l[i])
     
@@ -151,12 +154,15 @@ if __name__ == '__main__':
     plt.savefig("hist-l.jpg")
 
     plt.figure()
+    plt.hist(fl_1000)
+    plt.savefig("hist-fl_1000.jpg")
+
+    plt.figure()
     plt.hist(fl)
     plt.savefig("hist-fl.jpg")
 
     plt.figure()
     plt.hist(w[1])
     plt.savefig("weight-dist.jpg")
-
 
     
