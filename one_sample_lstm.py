@@ -132,13 +132,14 @@ class one_sample_lstm():
             plt.savefig("loss.jpg") 
 
 if __name__ == '__main__':
-    num_exp = 500
+    num_exp = 100
+    num_input = 500
     l = np.zeros(num_exp)
     fl = np.zeros(num_exp)
     fl_1000 = np.zeros(num_exp)
-    w = np.zeros([num_exp,100])
-    net = one_sample_lstm(num_hidden = 8, num_input = 100, timesteps = 100, \
-    future_time = 10, learning_rate = 100, training_steps = 10000, display_step = 100)
+    w = np.zeros([num_exp,num_input])
+    net = one_sample_lstm(num_hidden = 8, num_input = num_input, timesteps = 100, \
+    future_time = 10, learning_rate = 100, training_steps = 5000, display_step = 100)
     net.define_graph()
     for i in range(0,num_exp):
         print(i)
@@ -149,6 +150,11 @@ if __name__ == '__main__':
         w[i] = net.w
         print(l[i])
     
+    print(l)
+    print(fl)
+    print(fl_1000)
+    
+
     plt.figure()
     plt.hist(l)
     plt.savefig("hist-l.jpg")
