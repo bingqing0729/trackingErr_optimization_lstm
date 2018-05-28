@@ -19,24 +19,34 @@ import math
 pkl_file = open('clean_data.pkl','rb')
 excess, _ = pickle.load(pkl_file)
 
-pkl_file = open('000905.pkl','rb')
-comp = pickle.load(pkl_file)
-
+pkl_file = open('000905_weight.pkl','rb')
+weight0 = pickle.load(pkl_file)
 
 def get_chunk(timesteps,num_input,future_time,n=1):
     x = np.zeros([n,timesteps,num_input])
     y = np.zeros([n,future_time,num_input])
     i = 0
     while i < n:
+        # pick a day
         samples = np.random.randint(0,len(list(excess.index[0:-timesteps-future_time])),1)
-        current_comp_index = len(comp[0][comp[0]<excess.index[samples][0]])-1
-        stocks = random.sample(comp[1][current_comp_index],num_input)
+        # current time point of index
+        current_comp_index = len(weight0.index[weight0.index<excess.index[samples][0]])-1
+        # components and weights
+        comp = weight0.iloc[current_comp_index,:][weight0.iloc[current_comp_index,:]>0]
+        # pick num_input stocks(loc)
+        stocks = random.sample(range(0,499),num_input)
+        # stocks and weights
+        stocks = comp.index[stocks]
+        weights = list(comp[stocks])
+        # history excess return
         x[i] = excess.loc[excess.index[samples][0]:excess.index[samples+timesteps-1][0],stocks]
+        # future excess return
         y[i] = excess.loc[excess.index[samples+timesteps][0]:excess.index[samples+timesteps+future_time-1][0],stocks]
+        
         if sum(sum(np.isnan(x[i])))>0 or sum(sum(np.isnan(y[i])))>0:
             i = i-1
         i = i+1
-    return(x,y)
+    return(x,y,weights)
 
 class one_sample_lstm():
     
@@ -64,7 +74,7 @@ class one_sample_lstm():
         with self.graph.as_default():
             self.tf_train_samples = tf.placeholder("float", [None, self.timesteps, self.num_input])
             self.tf_train_future_return = tf.placeholder("float", [None, self.future_time, self.num_input])
-
+            self.weight0 = tf.placeholder("float",[None,self.num_input])
 
             weights = {
                 'out': tf.Variable(tf.random_normal([self.num_hidden, self.num_input]))
@@ -84,7 +94,7 @@ class one_sample_lstm():
                 outputs, _ = rnn.static_rnn(lstm_cell, x, dtype=tf.float32)
 
                 # Linear activation, using rnn inner loop last output
-                return tf.matmul(outputs[-1], weights['out']) + biases['out']
+                return tf.matmul(outputs[-1], weights['out']) + biases['out'] + self.weight0
 
             def cal_loss(output,input_samples):
                 self.prediction = tf.nn.relu(output)
@@ -109,14 +119,14 @@ class one_sample_lstm():
 
             # training
             print('Start Training')
-            training_x, training_y = get_chunk(self.timesteps,self.num_input,self.future_time)
+            training_x, training_y, weight0 = get_chunk(self.timesteps,self.num_input,self.future_time)
             l = np.zeros(self.training_steps)
             fl = np.zeros(self.training_steps)
             w = np.zeros([self.training_steps,self.num_input])
             for step in range(0, self.training_steps):
                 # Run optimization op (backprop)
                 _, l[step], fl[step], w[step] = sess.run([self.optimizer,self.loss,self.future_loss,self.prediction], 
-                                        feed_dict={self.tf_train_samples: training_x, self.tf_train_future_return: training_y})       
+                                        feed_dict={self.tf_train_samples: training_x, self.tf_train_future_return: training_y, self.weight0: weight0})       
                 if step % self.display_step == 0:
                     print("Step " + str(step) + ", Loss= " + format(l[step]) + ", Future Loss= " + format(fl[step]))
 
