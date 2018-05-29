@@ -34,7 +34,7 @@ def get_chunk(timesteps,num_input,future_time,n=1):
         # components and weights
         comp = weight0.iloc[current_comp_index,:][weight0.iloc[current_comp_index,:]>0]
         # pick num_input stocks(loc)
-        stocks = random.sample(range(0,499),num_input)
+        stocks = random.sample(range(0,500),num_input)
         # stocks and weights
         stocks = comp.index[stocks]
         weights = list(comp[stocks])
@@ -74,7 +74,7 @@ class one_sample_lstm():
         with self.graph.as_default():
             self.tf_train_samples = tf.placeholder("float", [None, self.timesteps, self.num_input])
             self.tf_train_future_return = tf.placeholder("float", [None, self.future_time, self.num_input])
-            self.weight0 = tf.placeholder("float",[None,self.num_input])
+            self.weight0 = tf.placeholder("float",[self.num_input])
 
             weights = {
                 'out': tf.Variable(tf.random_normal([self.num_hidden, self.num_input]))
@@ -128,7 +128,7 @@ class one_sample_lstm():
                 _, l[step], fl[step], w[step] = sess.run([self.optimizer,self.loss,self.future_loss,self.prediction], 
                                         feed_dict={self.tf_train_samples: training_x, self.tf_train_future_return: training_y, self.weight0: weight0})       
                 if step % self.display_step == 0:
-                    print("Step " + str(step) + ", Loss= " + format(l[step]) + ", Future Loss= " + format(fl[step]))
+                    print("Step " + str(step) + ", Loss= " + format(math.sqrt(l[step]*250)) + ", Future Loss= " + format(math.sqrt(fl[step]*250)))
 
             print("Optimization Finished!")
 
@@ -136,13 +136,13 @@ class one_sample_lstm():
             self.fl = fl[-1]
             self.w = w[-1]
             self.fl_1000 = fl[1000]
-            plt.figure()
-            plt.plot(l, 'r', label='training loss')  
-            plt.plot(fl, label='future loss')
-            plt.savefig("loss.jpg") 
+            #plt.figure()
+            #plt.plot(l, 'r', label='training loss')  
+            #plt.plot(fl, label='future loss')
+            #plt.savefig("loss.jpg") 
 
 if __name__ == '__main__':
-    num_exp = 100
+    num_exp = 50
     num_input = 500
     l = np.zeros(num_exp)
     fl = np.zeros(num_exp)
@@ -178,7 +178,7 @@ if __name__ == '__main__':
     plt.savefig("hist-fl.jpg")
 
     plt.figure()
-    plt.hist(w[1])
+    plt.hist(w[40])
     plt.savefig("weight-dist.jpg")
 
     
