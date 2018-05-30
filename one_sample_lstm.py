@@ -28,7 +28,7 @@ factor_mom = pickle.load(pkl_file)
 factor = np.array(factor_mom.fillna(0))
 factor[factor<-10]=0
 factor = sklearn.preprocessing.scale(factor,axis=1)
-factor = pd.DataFrame(factor,index=factor_mom.index,columns=factor_mom.columns)
+factor = pd.DataFrame(-factor,index=factor_mom.index,columns=factor_mom.columns)
 
 def get_chunk(timesteps,num_input,future_time,n=1,factor=factor):
     x = np.zeros([n,timesteps,num_input])
@@ -139,13 +139,14 @@ class one_sample_lstm():
         self.session = tf.Session(graph=self.graph)
         
         with self.session as sess:
-            tf.global_variables_initializer().run()
+            
 
             # training
             training_x, training_y, weight0, factor_h, factor_f = get_chunk(self.timesteps,self.num_input,self.future_time)
             self.fe_end = np.zeros(len(self.te_limit))
             i = 0
             for limit in list(self.te_limit):
+                tf.global_variables_initializer().run()
                 print('Start Training:')
                 l = np.zeros(self.training_steps)
                 ex_return = np.zeros(self.training_steps)
@@ -174,11 +175,11 @@ class one_sample_lstm():
                 i = i+1
 
 if __name__ == '__main__':
-    num_exp = 5
+    num_exp = 1
     num_input = 100
-    te_limit = [0.06,0.05,0.04,0.03,0.02]
+    te_limit = [0.02,0.03,0.04,0.05,0.06]
     net = one_sample_lstm(num_hidden = 5, num_input = num_input, timesteps = 100, \
-    future_time = 10, learning_rate = 0.01, training_steps = 1000, display_step = 50, te_limit = te_limit)
+    future_time = 10, learning_rate = 0.1, training_steps = 1000, display_step = 50, te_limit = te_limit)
     net.define_graph()
     for i in range(0,num_exp):
         print(i)
