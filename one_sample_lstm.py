@@ -51,9 +51,9 @@ def get_chunk(timesteps,num_input,future_time,n=1,factor=factor):
         # future excess return
         y[i] = excess.loc[excess.index[samples+timesteps][0]:excess.index[samples+timesteps+future_time-1][0],stocks]
         # history factor
-        factor_h = factor.loc[excess.index[samples][0]:excess.index[samples+timesteps-1][0],stocks]
+        factor_h = factor.loc[excess.index[samples+timesteps-1][0],stocks]
         # future factor
-        factor_f = factor.loc[excess.index[samples+timesteps][0]:excess.index[samples+timesteps+future_time-1][0],stocks]
+        factor_f = factor.loc[excess.index[samples+timesteps+future_time-1][0],stocks]
 
         if sum(sum(np.isnan(x[i])))>0 or sum(sum(np.isnan(y[i])))>0:
             i = i-1
@@ -62,13 +62,14 @@ def get_chunk(timesteps,num_input,future_time,n=1,factor=factor):
 
 class one_sample_lstm():
     
-    def __init__(self, num_input, timesteps, future_time, num_hidden, learning_rate,training_steps,display_step):
+    def __init__(self, num_input, te_limit, timesteps, future_time, num_hidden, learning_rate,training_steps,display_step):
         
         self.num_input = num_input
+        self.te_limit = te_limit
         self.timesteps = timesteps
         self.future_time = future_time
         self.display_step = display_step
-
+        
         # Hyper parameters
         self.training_steps = training_steps
         self.num_hidden = num_hidden
@@ -87,8 +88,9 @@ class one_sample_lstm():
             self.tf_train_samples = tf.placeholder("float", [None, self.timesteps, self.num_input])
             self.tf_train_future_return = tf.placeholder("float", [None, self.future_time, self.num_input])
             self.weight0 = tf.placeholder("float",[self.num_input])
-            self.factor = tf.placeholder('float',[self.timesteps, self.num_input])
-            self.factor_f = tf.placeholder('float',[self.future_time, self.num_input])
+            self.factor = tf.placeholder('float',self.num_input)
+            self.factor_f = tf.placeholder('float',self.num_input)
+            self.limit = tf.placeholder('float',None)
 
             weights = {
                 'out': tf.Variable(tf.random_normal([self.num_hidden, self.num_input]))
@@ -115,16 +117,19 @@ class one_sample_lstm():
                 self.prediction = tf.expand_dims(tf.divide(self.prediction,tf.expand_dims(tf.reduce_sum(self.prediction,1),1)),1)
                 #self.prediction_final = tf.reduce_sum(tf.multiply(future,self.prediction),2)
                 self.prediction_final = tf.reduce_sum(tf.multiply(input_samples,self.prediction),2)
+                factor = tf.expand_dims(factor,0)
                 self.factor_total = tf.reduce_sum(tf.reduce_sum(tf.multiply(tf.expand_dims(factor,0),self.prediction),2),1)
                 #return tf.nn.l2_loss(self.prediction_final)*2/self.batch_size/self.future_time
-                loss =  (tf.nn.l2_loss(self.prediction_final)*2-0.0001*self.factor_total)/self.timesteps
+                te = tf.sqrt(tf.nn.l2_loss(self.prediction_final)*2/self.timesteps*250)
+                loss = 100000*tf.nn.relu(te-self.limit)-self.factor_total
                 ex_return = tf.reduce_sum(self.prediction_final)/self.timesteps*250
-                te = tf.nn.l2_loss(self.prediction_final)*2/self.timesteps*250
-                return [loss, ex_return, te, self.factor_total/self.timesteps] 
+                return [loss, ex_return, te, self.factor_total]
             
             output =  model(self.tf_train_samples)
-            self.loss,self.ex_return, self.te, self.factor_exposure = cal_loss(output=output,input_samples=self.tf_train_samples,factor=self.factor)
-            self.future_loss, self.f_ex_return, self.f_te, self.f_factor_exposure =  [i*self.timesteps/self.future_time for i in cal_loss(output=output, input_samples=self.tf_train_future_return,\
+            self.loss,self.ex_return, self.te, self.factor_exposure = \
+            cal_loss(output=output,input_samples=self.tf_train_samples,factor=self.factor)
+            self.future_loss, self.f_ex_return, self.f_te, self.f_factor_exposure =  \
+            [i*self.timesteps/self.future_time for i in cal_loss(output=output, input_samples=self.tf_train_future_return,\
             factor=self.factor_f)]
             self.optimizer = tf.train.GradientDescentOptimizer(learning_rate = self.learning_rate).minimize(self.loss)
             
@@ -137,66 +142,54 @@ class one_sample_lstm():
             tf.global_variables_initializer().run()
 
             # training
-            print('Start Training')
             training_x, training_y, weight0, factor_h, factor_f = get_chunk(self.timesteps,self.num_input,self.future_time)
-            l = np.zeros(self.training_steps)
-            ex_return = np.zeros(self.training_steps)
-            te = np.zeros(self.training_steps)
-            fe = np.zeros(self.training_steps)
-            fl = np.zeros(self.training_steps)
-            f_ex_return = np.zeros(self.training_steps)
-            f_te = np.zeros(self.training_steps)
-            f_fe = np.zeros(self.training_steps)
-            w = np.zeros([self.training_steps,self.num_input])
-            for step in range(0, self.training_steps):
-                # Run optimization op (backprop)
-                _, l[step], ex_return[step], te[step], fe[step], fl[step], f_ex_return[step], f_te[step], f_fe[step], w[step] = \
-                sess.run([self.optimizer,self.loss,self.ex_return,self.te,self.factor_exposure,self.future_loss,self.f_ex_return,\
-                self.f_te,self.f_factor_exposure, self.prediction], 
-                                        feed_dict={self.tf_train_samples: training_x, \
-                                        self.tf_train_future_return: training_y, self.weight0: weight0, \
-                                        self.factor: factor_h, self.factor_f: factor_f})       
-                if step % self.display_step == 0:
-                    print("Step " + str(step) + ", Loss= " + format(l[step]) + ", excess return= "+ format(ex_return[step]) + \
-                    ", te= " + format(math.sqrt(te[step]))+", factor exposure "+format(fe[step]))
+            self.fe_end = np.zeros(len(self.te_limit))
+            i = 0
+            for limit in list(self.te_limit):
+                print('Start Training:')
+                l = np.zeros(self.training_steps)
+                ex_return = np.zeros(self.training_steps)
+                te = np.zeros(self.training_steps)
+                fe = np.zeros(self.training_steps)
+                fl = np.zeros(self.training_steps)
+                f_ex_return = np.zeros(self.training_steps)
+                f_te = np.zeros(self.training_steps)
+                f_fe = np.zeros(self.training_steps)
+                w = np.zeros([self.training_steps,self.num_input])
+                for step in range(0, self.training_steps):
+                    # Run optimization op (backprop)
+                    _, l[step], ex_return[step], te[step], fe[step], fl[step], f_ex_return[step], f_te[step], f_fe[step], w[step] = \
+                    sess.run([self.optimizer,self.loss,self.ex_return,self.te,self.factor_exposure,self.future_loss,self.f_ex_return,\
+                    self.f_te,self.f_factor_exposure, self.prediction], 
+                                            feed_dict={self.tf_train_samples: training_x, \
+                                            self.tf_train_future_return: training_y, self.weight0: weight0, \
+                                            self.factor: factor_h, self.factor_f: factor_f, self.limit: limit})       
+                    if step % self.display_step == 0:
+                        print("Step " + str(step) + ", Loss= " + format(l[step]) + ", excess return= "+ format(ex_return[step]) + \
+                        ", te= " + format(te[step])+", factor exposure "+format(fe[step]))
 
-            print("Optimization Finished!")
-
-            self.l = l[-1]
-            self.fl = fl[-1]
-            self.w = w[-1]
-            #plt.figure()
-            #plt.plot(l, 'r', label='training loss')  
-            #plt.plot(fl, label='future loss')
-            #plt.savefig("loss.jpg") 
+                print("Optimization Finished!")
+                
+                self.fe_end[i] = fe[-1]
+                i = i+1
 
 if __name__ == '__main__':
-    num_exp = 3
+    num_exp = 5
     num_input = 100
-    l = np.zeros(num_exp)
-    fl = np.zeros(num_exp)
-    w = np.zeros([num_exp,num_input])
-    net = one_sample_lstm(num_hidden = 8, num_input = num_input, timesteps = 100, \
-    future_time = 10, learning_rate = 100, training_steps = 5000, display_step = 100)
+    te_limit = [0.06,0.05,0.04,0.03,0.02]
+    net = one_sample_lstm(num_hidden = 5, num_input = num_input, timesteps = 100, \
+    future_time = 10, learning_rate = 0.01, training_steps = 1000, display_step = 50, te_limit = te_limit)
     net.define_graph()
     for i in range(0,num_exp):
         print(i)
         net.run()
-        l[i] = net.l
-        fl[i] = net.fl
-        w[i] = net.w
-    
-    print(l)
-    print(fl)
-    
+        fe_end = net.fe_end
+        plt.figure()
+        plt.plot(te_limit,fe_end)
+        output = "te_limit_fe"+str(i)+".jpg"
+        plt.savefig(output)
 
-    plt.figure()
-    plt.hist(l)
-    plt.savefig("hist-l.jpg")
 
-    plt.figure()
-    plt.hist(fl)
-    plt.savefig("hist-fl.jpg")
 
 
 
